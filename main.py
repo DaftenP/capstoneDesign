@@ -1,7 +1,8 @@
 import io
 from google.cloud import speech_v1p1beta1 as speech
 from pydub import AudioSegment
-
+from pydub.effects import speedup
+from pyrubberband import time_stretch
 # audio = AudioSegment.from_file("./test/test_audio.wav")
 #
 # # Resample the audio to a higher sample rate (e.g., 48000 Hz)
@@ -15,6 +16,7 @@ def silent(timestamps, audiofile):
     for start, end in timestamps:
         segment_to_silence = AudioSegment.silent(duration=(end - start))
         audio_input = audio_input[:start] + segment_to_silence + audio_input[end:]
+    # resized_audio = speedup(audio_input, playback_speed=2)
     audio_input.export(audiofile[:-4]+'_output.wav', format="wav")
 
 
@@ -22,10 +24,10 @@ client = speech.SpeechClient()
 
 audio_file = "./test/test_audio.wav"
 
-with io.open(audio_file, "rb") as f:
-    content = f.read()
-
-audio = speech.RecognitionAudio(content=content)
+content = AudioSegment.from_file(audio_file, format="wav")
+# resized_audio = time_stretch(content.get_array_of_samples(), content.frame_rate, 0.5)
+# resized_audio = AudioSegment(resized_audio.tobytes(), frame_rate=content.frame_rate, sample_width=content.sample_width, channels=content.channels)
+audio = speech.RecognitionAudio(content=content.raw_data)
 
 config = speech.RecognitionConfig(
     encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
