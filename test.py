@@ -1,11 +1,10 @@
-import kaldi
-model = kaldi.nnet3.NnetSimpleLoopedComputationOptions()
-fst = fst.ReadFstKaldi("path/to/fst.txt")
-decoder = decoder.Decoder(fst, model)
+import whisper
+import time
 
-# Set up the decoder
-decodable = online2.WavOnlineMatrixFeature(matrix.FloatMatrix())
-decoder.InitDecoding()
+start = time.time()
+model = whisper.load_model("base")
+result = model.transcribe("./test/test_audio_original.wav")
+print(result)
+end = time.time()
 
-# Decode the audio
-result = decoder.DecodeSimple(decodable)
+print(f"{end - start:.5f} sec")
