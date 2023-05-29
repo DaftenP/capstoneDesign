@@ -1,67 +1,47 @@
-from google.cloud import speech_v1p1beta1 as speech
-from pydub import AudioSegment
-import time
+import pyaudio
+import numpy as np
+from recognizer import recognize
 
-starttime = time.time()
+# 파이오디오 초기화
+CHUNK = 1024  # 오디오 데이터를 한 번에 읽을 크기
+FORMAT = pyaudio.paInt16  # 오디오 포맷
+CHANNELS = 1  # 오디오 채널 (모노: 1, 스테레오: 2)
+RATE = 16000  # 샘플링 레이트 (Hz)
 
+p = pyaudio.PyAudio()
+stream = p.open(format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK)
 
-def silent(timestamps, audiofile):
-    audio_input = AudioSegment.from_file(audiofile, format="wav")
-    for start, end in timestamps:
-        segment_to_silence = AudioSegment.silent(duration=(end - start))
-        audio_input = audio_input[:start + 1] + segment_to_silence + audio_input[end:]
-    audio_input.export(audiofile[:-4] + '_output.wav', format="wav")
+# 녹음 시작
+print("녹음을 시작합니다.")
 
+buffer = []  # 음성 데이터를 저장할 버퍼
+is_recording = False  # 녹음 중인지 여부를 나타내는 플래그
 
-client = speech.SpeechClient()
+while True:
+    data = stream.read(CHUNK)
+    audio_data = np.frombuffer(data, dtype=np.int16)
 
-audio_file = "./test/test_audio.wav"
+    # 음성 데이터의 RMS 값을 계산하여 묵음인지 여부를 판단
+    rms = np.sqrt(np.mean(np.square(audio_data)))
+    if rms < 1000:  # 임계값을 조정하여 묵음 판단 기준 설정
+        if is_recording:
+            is_recording = False
+            print("녹음이 종료되었습니다.", buffer)
+            await recognize(buffer)
+            buffer = []  # 버퍼 초기화
+    else:
+        if not is_recording:
+            is_recording = True
+            print("녹음을 시작합니다.")
 
-content = AudioSegment.from_file(audio_file, format="wav")
-content = content.set_frame_rate(int(content.frame_rate * 1.7))
-# with open(audio_file, "rb") as f:
-#     content = f.read()
-audio = speech.RecognitionAudio(content=content.raw_data)
+    if is_recording:
+        buffer.append(audio_data.tobytes())  # 버퍼에 음성 데이터 추가
 
-config = speech.RecognitionConfig(
-    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-    language_code="ko-KR",
-    sample_rate_hertz=25600,
-    enable_word_time_offsets=True,
-)
-
-response = client.recognize(config=config, audio=audio)
-# word for filtering
-filtering_word = ["새끼"]
-timestamps = []
-data = []
-for result in response.results:
-    alternative = result.alternatives[0]
-
-    # whole scripts of stt result
-    # print(u"Transcript: {}".format(alternative.transcript))
-    # print(f'example of word : {alternative.words[1]}')
-    # print("Word level time offsets:")
-
-    for word in alternative.words:
-        # data.append([word.word, word.start_time, word.end_time])
-        # this point is about conversion.
-        start = str(word.start_time).split(':')
-        end = str(word.end_time).split(':')
-        start_time = int(int(start[0]) * 3600000 + int(start[1]) * 60000 + float(start[2]) * 1000)
-        end_time = int(int(end[0]) * 3600000 + int(end[1]) * 60000 + float(end[2]) * 1000)
-        timestamps.append([start_time,end_time])
-        if word.word in filtering_word:
-            print(f'------A filtering word was detected------')
-            print(u"word: '{}', time: {}ms ~ {}ms".format(word.word, start_time, end_time))
-            print(f'-----------------------------------------')
-        else:
-            print(u"word: '{}', time: {}ms ~ {}ms".format(word.word, start_time, end_time))
-endtime = time.time()
-# print(f"Running time : {endtime - starttime:.5f} sec")
-# silent(timestamps, "./test/test_audio.wav")
-# print(f"Timestamp of filtered words : {timestamps}")
-# with open('data.csv', 'w') as f:
-#     for d, s, e in data:
-#         f.write(f'{d},{s},0\n')
-#         f.write(f'{d},{e},0\n')
+# 종료 시 정리 작업
+stream.stop_stream()
+stream.close()
+p.terminate()
