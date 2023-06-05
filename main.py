@@ -18,7 +18,7 @@ SAMPLE_RATE = 16000  # 샘플링 레이트 (16000Hz로 설정)
 # 버퍼 생성 및 묵음 기준 임계값 설정
 buffer = Queue()
 stream_buffer = Queue()
-SILENCE_THRESHOLD = 300  # 묵음 임계값 (조정 가능)
+SILENCE_THRESHOLD = 1500  # 묵음 임계값 (조정 가능) // default = 300
 
 client = speech.SpeechClient()
 audio = pyaudio.PyAudio()
@@ -74,7 +74,7 @@ def speech_recognition(audio_data):
     response = client.recognize(config=config, audio=audio)
     # print(response.results)
     # 인식 결과 출력
-    filtering_word = ["새끼"]
+    filtering_word = ["바보", '바보야']
 
     timestamps = []
     for result in response.results:
@@ -94,7 +94,7 @@ def speech_recognition(audio_data):
                 print(u"word: '{}', time: {}ms ~ {}ms".format(word.word, start_time, end_time))
     silent_thread = threading.Thread(target=set_silent, args=(timestamps, audio_binary,))
     silent_thread.start()
-        # print(f"Timestamp of filtered words : {timestamps}")
+    # print(f"Timestamp of filtered words : {timestamps}")
 
 
 def set_silent(timestamps, audio_data):
@@ -104,45 +104,48 @@ def set_silent(timestamps, audio_data):
     for start, end in timestamps:
         segment_to_silence = AudioSegment.silent(duration=(end - start))
         audio_input = audio_input[:start + 1] + segment_to_silence + audio_input[end:]
-    audio_input.export('./test/' + str(count).zfill(6) + '_output.wav', format="wav")
+    audio_input.export('./output/' + str(count).zfill(6) + '_output.wav', format="wav")
+    stream_buffer.put('./output/' + str(count).zfill(6) + '_output.wav')
     count += 1
     # stream_buffer.put(audio_input)
+
 
 # 마이크로 음성 캡처 스레드 시작
 capture_thread = threading.Thread(target=audio_capture)
 capture_thread.daemon = True
 capture_thread.start()
 
-#
-# @app.route('/')
-# def index():
-#     return render_template('index.html')
-#
-#
-# @app.route('/stream')
-# def audio_stream():
-#     def generate():
-#         audio_buffer = io.BytesIO()
-#         while True:
-#             stream_buffer.get().export(audio_buffer, format='wav')
-#             audio_buffer.seek(0)
-#             while True:
-#                 data = audio_buffer.read(1024)
-#                 if not data:
-#                     break
-#                 yield data
-#         # while True:
-#             # if len(stream_buffer.queue) > 5:
-#             #     data = b''.join(list(stream_buffer.queue))
-#             #     stream_buffer.queue.clear()
-#             #     yield data
-#     return Response(generate(), mimetype="audio/wav")
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/stream')
+def audio_stream():
+    def generate():
+        while True:
+            path = stream_buffer.get()
+            with open(path, 'rb') as f:
+                while True:
+                    data = f.read(1024)
+                    if not data:
+                        break
+                    yield data
+        # while True:
+        # if len(stream_buffer.queue) > 5:
+        #     data = b''.join(list(stream_buffer.queue))
+        #     stream_buffer.queue.clear()
+        #     yield data
+
+    return Response(generate(), mimetype="audio/wav")
+
 
 # 프로그램이 종료될 때까지 대기
 try:
+    if __name__ == '__main__':
+        app.run(debug=True)
     while True:
         pass
-    # if __name__ == '__main__':
-    #     app.run(debug=True)
 except KeyboardInterrupt:
     pass

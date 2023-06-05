@@ -21,7 +21,7 @@ content = content.set_frame_rate(int(content.frame_rate * 1.7))
 # with open(audio_file, "rb") as f:
 #     content = f.read()
 audio = speech.RecognitionAudio(content=content.raw_data)
-print(type(content.raw_data))
+# print(type(content.raw_data))
 config = speech.RecognitionConfig(
     encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
     language_code="ko-KR",
